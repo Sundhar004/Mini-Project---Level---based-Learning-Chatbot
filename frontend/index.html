@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>EduWizard AI - Web Application</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { background: #FAFBFC; color: #0B1220; font-family: Inter, system-ui, sans-serif; }
+    .shell { max-width: 800px; margin: 0 auto; }
+    .panel { background: #fff; border: 1px solid #E6EAF0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .btn { background: #2563EB; color: #fff; border-radius: 8px; padding: 0.75em 1.5em; font-weight: 600; transition: background 0.2s; }
+    .btn:hover { background: #1D4ED8; }
+    .error { color: #EF4444; }
+    .success { color: #10B981; }
+    .loading { opacity: 0.6; pointer-events: none; }
+    .spinner { border: 2px solid #f3f3f3; border-top: 2px solid #2563EB; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header class="shell py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="text-lg font-bold">EduWizard AI</div>
+      <span id="connectionStatus" class="text-xs px-2 py-1 success">Connected</span>
+    </div>
+  </header>
+  <main class="shell py-8">
+    <div class="panel p-6 mb-8">
+      <h2 class="text-xl font-bold mb-4">Ask a Question</h2>
+      <textarea id="questionInput" rows="3" class="w-full p-3 mb-3 border rounded" placeholder="Type your question here..."></textarea>
+      <div class="flex gap-3 mb-3">
+        <select id="levelSelect" class="p-2 border rounded">
+          <option value="school">School</option>
+          <option value="college">College</option>
+          <option value="professional">Professional</option>
+        </select>
+        <button id="explainBtn" class="btn">Explain</button>
+        <div class="spinner hidden" id="explainSpinner"></div>
+      </div>
+      <div id="explanationResult" class="mt-4"></div>
+    </div>
+    <div class="panel p-6 mb-8">
+      <h2 class="text-xl font-bold mb-4">Summarize Text</h2>
+      <textarea id="textInput" rows="4" class="w-full p-3 mb-3 border rounded" placeholder="Paste text to summarize..."></textarea>
+      <div class="flex gap-3 mb-3">
+        <button id="summarizeBtn" class="btn">Summarize</button>
+        <div class="spinner hidden" id="summarizeSpinner"></div>
+      </div>
+      <div id="summaryResult" class="mt-4"></div>
+    </div>
+    <div id="statusBar" class="mb-6 hidden">
+      <div class="panel p-3 flex items-center gap-3">
+        <div class="spinner hidden" id="loadingSpinner"></div>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+  </main>
+  <script>
+    // Configuration
+    const API_BASE = "http://localhost:5000/api";
+    const elements = {
+      questionInput: document.getElementById('questionInput'),
+      levelSelect: document.getElementById('levelSelect'),
+      explainBtn: document.getElementById('explainBtn'),
+      explainSpinner: document.getElementById('explainSpinner'),
+      explanationResult: document.getElementById('explanationResult'),
+      textInput: document.getElementById('textInput'),
+      summarizeBtn: document.getElementById('summarizeBtn'),
+      summarizeSpinner: document.getElementById('summarizeSpinner'),
+      summaryResult: document.getElementById('summaryResult'),
+      connectionStatus: document.getElementById('connectionStatus'),
+      statusBar: document.getElementById('statusBar'),
+      statusText: document.getElementById('statusText'),
+      loadingSpinner: document.getElementById('loadingSpinner')
+    };
+
+    function setLoading(button, spinner, loading) {
+      if (loading) {
+        button.classList.add('loading');
+        spinner.classList.remove('hidden');
+      } else {
+        button.classList.remove('loading');
+        spinner.classList.add('hidden');
+      }
+    }
+
+    function showStatus(message, loading = false) {
+      elements.statusText.textContent = message;
+      elements.statusBar.classList.remove('hidden');
+      if (loading) {
+        elements.loadingSpinner.classList.remove('hidden');
+      } else {
+        elements.loadingSpinner.classList.add('hidden');
+      }
+    }
+
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        elements.connectionStatus.textContent = 'Connected';
+        elements.connectionStatus.className = 'text-xs px-2 py-1 success';
+      } else {
+        elements.connectionStatus.textContent = 'Disconnected';
+        elements.connectionStatus.className = 'text-xs px-2 py-1 error';
+      }
+    }
+
+    async function explainQuestion() {
+      const question = elements.questionInput.value.trim();
+      const level = elements.levelSelect.value;
+      if (!question) {
+        elements.explanationResult.innerHTML = '<div class="error">Please enter a question.</div>';
+        return;
+      }
+      setLoading(elements.explainBtn, elements.explainSpinner, true);
+      showStatus('Processing...', true);
+      try {
+        const response = await fetch(`${API_BASE}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'explain', input: question, level })
+        });
+        const result = await response.json();
+        if (result.result) {
+          elements.explanationResult.innerHTML = `<div class="success">${result.result}</div>`;
+        } else {
+          elements.explanationResult.innerHTML = `<div class="error">❌ AI could not generate a proper answer. Please try again.</div>`;
+        }
+        showStatus('Ready', false);
+        updateConnectionStatus(true);
+      } catch (err) {
+        elements.explanationResult.innerHTML = `<div class="error">Connection error: ${err.message}</div>`;
+        showStatus('Error occurred', false);
+        updateConnectionStatus(false);
+      }
+      setLoading(elements.explainBtn, elements.explainSpinner, false);
+    }
+
+    async function summarizeText() {
+      const text = elements.textInput.value.trim();
+      if (!text) {
+        elements.summaryResult.innerHTML = '<div class="error">Please enter text to summarize.</div>';
+        return;
+      }
+      setLoading(elements.summarizeBtn, elements.summarizeSpinner, true);
+      showStatus('Processing...', true);
+      try {
+        const response = await fetch(`${API_BASE}/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'summarize', input: text })
+        });
+        const result = await response.json();
+        if (result.result) {
+          elements.summaryResult.innerHTML = `<div class="success">${result.result}</div>`;
+        } else {
+          elements.summaryResult.innerHTML = `<div class="error">❌ AI could not generate a proper summary. Please try again.</div>`;
+        }
+        showStatus('Ready', false);
+        updateConnectionStatus(true);
+      } catch (err) {
+        elements.summaryResult.innerHTML = `<div class="error">Connection error: ${err.message}</div>`;
+        showStatus('Error occurred', false);
+        updateConnectionStatus(false);
+      }
+      setLoading(elements.summarizeBtn, elements.summarizeSpinner, false);
+    }
+
+    elements.explainBtn.addEventListener('click', explainQuestion);
+    elements.summarizeBtn.addEventListener('click', summarizeText);
+
+    // Test connection on load
+    setTimeout(async () => {
+      try {
+        await fetch(`${API_BASE}/health`);
+        updateConnectionStatus(true);
+      } catch {
+        updateConnectionStatus(false);
+        showStatus('Backend server not connected.', false);
+      }
+    }, 500);
+  </script>
+</body>
+</html>
