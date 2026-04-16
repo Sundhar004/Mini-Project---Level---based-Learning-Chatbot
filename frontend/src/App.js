@@ -1,298 +1,150 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import "./App.css";
 
 const API_URL = "/api";
 
 function App() {
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("⏳ Checking backend...");
+  const [status, setStatus] = useState("⏳ Connecting...");
   const [mode, setMode] = useState("explain");
-  const [level, setLevel] = useState("basic");
-  const [history, setHistory] = useState(() => {
-    const saved = localStorage.getItem("eduwiz-history");
+  const [level, setLevel] = useState("intermediate");
+  const [chat, setChat] = useState(() => {
+    const saved = localStorage.getItem("eduwiz-chat");
     return saved ? JSON.parse(saved) : [];
   });
 
+  const chatEndRef = useRef(null);
+
   useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus("❌ Backend not connected"));
+    const checkConnection = async () => {
+      try {
+        const res = await fetch(`${API_URL}/health`);
+        const data = await res.json();
+        setStatus(data.status);
+      } catch {
+        setStatus("❌ Offline");
+      }
+    };
+    checkConnection();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("eduwiz-history", JSON.stringify(history));
-  }, [history]);
+    localStorage.setItem("eduwiz-chat", JSON.stringify(chat));
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim()) return;
 
+    const userMessage = { role: "user", content: question };
+    setChat((prev) => [...prev, userMessage]);
+    setQuestion("");
     setLoading(true);
-    setAnswer("");
 
     try {
+      // Prepare history (excluding the very last message we just added)
+      const history = chat.map(m => ({ role: m.role, content: m.content }));
+
       const response = await fetch(`${API_URL}/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: mode, input: question, level }),
+        body: JSON.stringify({ 
+          type: mode, 
+          input: question, 
+          level: mode === "explain" ? level : undefined,
+          history: history 
+        }),
       });
 
       const data = await response.json();
-      const result = data.result || "⚠️ No response received.";
-      setAnswer(result);
-      setHistory((prev) => [...prev, { question, answer: result }]);
-    } catch {
-      const errorMsg = "⚠️ Failed to connect to backend.";
-      setAnswer(errorMsg);
-      setHistory((prev) => [...prev, { question, answer: errorMsg }]);
+      const aiMessage = { role: "assistant", content: data.result || "⚠️ No response." };
+      setChat((prev) => [...prev, aiMessage]);
+    } catch (err) {
+      setChat((prev) => [...prev, { role: "assistant", content: "❌ Connection failed." }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClearHistory = () => {
-    setHistory([]);
-    localStorage.removeItem("eduwiz-history");
+  const clearChat = () => {
+    if (window.confirm("Clear all conversations?")) {
+      setChat([]);
+      localStorage.removeItem("eduwiz-chat");
+    }
   };
 
-  const renderLevelSelector = () =>
-    mode === "explain" && (
-      <div style={styles.field}>
-        <label htmlFor="level" style={styles.label}>
-          Explanation Level:
-        </label>
-        <select
-          id="level"
-          value={level}
-          onChange={(e) => setLevel(e.target.value)}
-          style={styles.select}
-        >
-          <option value="basic">👶 Beginner</option>
-          <option value="intermediate">🧑 Student</option>
-          <option value="advanced">🎓 Professional</option>
-        </select>
-      </div>
-    );
-
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>EduWiz AI</h1>
-      <p
-        style={{
-          ...styles.status,
-          color: status.includes("❌") ? "#EF4444" : "#10B981",
-        }}
-      >
-        <span style={{ marginRight: "8px" }}>Backend Status:</span>
-        <span>{status}</span>
-      </p>
-
-      <div style={styles.field}>
-        <label htmlFor="mode" style={styles.label}>
-          Choose Mode:
-        </label>
-        <select
-          id="mode"
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          style={styles.select}
-        >
-          <option value="explain">📖 Explain</option>
-          <option value="summarize">📝 Summarize</option>
-          <option value="dictionary">📚 Dictionary</option>
-        </select>
-      </div>
-
-      {renderLevelSelector()}
-
-      <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
-        <textarea
-          rows="4"
-          style={styles.textarea}
-          placeholder={
-            mode === "dictionary"
-              ? "Enter a word to define..."
-              : mode === "summarize"
-              ? "Paste text to summarize..."
-              : "Ask a question or request an explanation..."
-          }
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          disabled={loading}
-          aria-label="User input"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          style={styles.button(loading)}
-          aria-label="Submit question"
-        >
-          {loading ? (
-            <span>
-              <span style={styles.spinner} />
-              Processing...
-            </span>
-          ) : (
-            "Ask"
-          )}
-        </button>
-      </form>
-
-      {answer && (
-        <div style={styles.answerBox}>
-          <h3 style={styles.answerTitle}>Answer:</h3>
-          <p style={{ margin: 0 }}>{answer}</p>
+    <div className="app-container">
+      <header className="glass-header">
+        <div className="logo">
+          <span className="sparkle">✨</span> EduWiz AI
         </div>
-      )}
+        <div className={`status-badge ${status.includes("✅") ? "online" : "offline"}`}>
+          {status}
+        </div>
+      </header>
 
-      {history.length > 0 && (
-        <div style={styles.historyPanel}>
-          <div style={styles.historyHeader}>
-            <h3 style={styles.historyTitle}>History:</h3>
-            <button onClick={handleClearHistory} style={styles.clearButton}>
-              🗑️ Clear History
-            </button>
+      <main className="chat-area">
+        {chat.length === 0 ? (
+          <div className="welcome-screen">
+            <h1>Hi! I'm your AI Learning Buddy.</h1>
+            <p>I can help you explain concepts, summarize text, or define words. Choose a mode to start!</p>
+            <div className="quick-actions">
+              <button onClick={() => setMode("explain")}>📖 Explain</button>
+              <button onClick={() => setMode("summarize")}>📝 Summarize</button>
+              <button onClick={() => setMode("dictionary")}>📚 Dictionary</button>
+            </div>
           </div>
-          <ul style={styles.historyList}>
-            {history.map((item, index) => (
-              <li key={index} style={styles.historyItem}>
-                <strong>Q:</strong> {item.question}
-                <br />
-                <strong>A:</strong> {item.answer}
-              </li>
+        ) : (
+          <div className="message-list">
+            {chat.map((msg, i) => (
+              <div key={i} className={`message-wrapper ${msg.role}`}>
+                <div className="message-bubble">
+                  {msg.content}
+                </div>
+              </div>
             ))}
-          </ul>
-        </div>
-      )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
+      </main>
 
-      <style>
-        {`
-          @keyframes spin {
-            0% { transform: rotate(0deg);}
-            100% { transform: rotate(360deg);}
-          }
-        `}
-      </style>
+      <footer className="input-area glass-footer">
+        <div className="controls">
+          <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">
+            <option value="explain">Explain</option>
+            <option value="summarize">Summarize</option>
+            <option value="dictionary">Dictionary</option>
+          </select>
+
+          {mode === "explain" && (
+            <select value={level} onChange={(e) => setLevel(e.target.value)} className="level-select">
+              <option value="basic">👶 Basic</option>
+              <option value="intermediate">🧑 Student</option>
+              <option value="advanced">🎓 Professional</option>
+            </select>
+          )}
+          
+          <button className="clear-btn" onClick={clearChat} title="Clear Chat">🗑️</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="input-form">
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={loading ? "Generating..." : "Type your message..."}
+            disabled={loading}
+          />
+          <button type="submit" disabled={loading || !question.trim()}>
+            {loading ? <div className="spinner-small" /> : "🚀"}
+          </button>
+        </form>
+      </footer>
     </div>
   );
 }
 
-const styles = {
-  container: {
-    maxWidth: "600px",
-    margin: "40px auto",
-    fontFamily: "Inter, Arial, sans-serif",
-    background: "#fff",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
-    padding: "32px",
-  },
-  title: {
-    fontWeight: 700,
-    fontSize: "2rem",
-    marginBottom: "8px",
-    color: "#2563EB",
-  },
-  status: {
-    marginBottom: "16px",
-    fontWeight: 600,
-  },
-  field: {
-    marginBottom: "18px",
-  },
-  label: {
-    fontWeight: 600,
-  },
-  select: {
-    marginLeft: "10px",
-    padding: "6px 12px",
-    borderRadius: "6px",
-    border: "1px solid #E6EAF0",
-    fontWeight: 500,
-  },
-  textarea: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px solid #E6EAF0",
-    fontSize: "1rem",
-    marginBottom: "10px",
-    resize: "vertical",
-  },
-  button: (loading) => ({
-    padding: "10px 24px",
-    background: loading ? "#93c5fd" : "#2563EB",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontWeight: 600,
-    fontSize: "1rem",
-    cursor: loading ? "not-allowed" : "pointer",
-    transition: "background 0.2s",
-  }),
-  spinner: {
-    display: "inline-block",
-    width: "18px",
-    height: "18px",
-    border: "2px solid #fff",
-    borderTop: "2px solid #2563EB",
-    borderRadius: "50%",
-    marginRight: "8px",
-    animation: "spin 1s linear infinite",
-    verticalAlign: "middle",
-  },
-  answerBox: {
-    marginTop: "20px",
-    padding: "18px",
-    background: "#F3F4F6",
-    borderRadius: "8px",
-    border: "1px solid #E6EAF0",
-    fontSize: "1.1rem",
-  },
-  answerTitle: {
-    fontWeight: 600,
-    marginBottom: "8px",
-    color: "#2563EB",
-  },
-  historyPanel: {
-    marginTop: "30px",
-    padding: "20px",
-    background: "#FAFAFA",
-    borderRadius: "8px",
-    border: "1px solid #E6EAF0",
-  },
-  historyHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "12px",
-  },
-  historyTitle: {
-    fontWeight: 600,
-    color: "#2563EB",
-  },
-  clearButton: {
-    background: "#EF4444",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    padding: "6px 12px",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-    historyList: {
-    listStyle: "none",
-    paddingLeft: 0,
-  },
-  historyItem: {
-    marginBottom: "16px",
-    lineHeight: "1.5",
-    background: "#fff",
-    padding: "12px",
-    borderRadius: "6px",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-  },
-};
-export default App;
+export default App;
