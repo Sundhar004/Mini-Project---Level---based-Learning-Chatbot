@@ -16,7 +16,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Use gemini-flash-latest for stability
 model = genai.GenerativeModel(
     model_name="gemini-flash-latest",
-    system_instruction="You are EduWiz, a friendly and helpful AI learning assistant. Your goal is to explain concepts clearly, summarize text accurately, and provide simple dictionary definitions. Adjust your tone to be encouraging and use clear language based on the requested level (basic, intermediate, advanced)."
+    system_instruction="You are EduWiz, a friendly and helpful AI learning assistant. Your goal is to explain concepts clearly, summarize text accurately, and provide simple dictionary definitions. Adjust your tone to be encouraging and use clear language based on the requested level (basic, intermediate, advanced). IMPORTANT: Do not use any markdown formatting like hashtags (#) or asterisks (*) in your responses. Provide clean, plain text."
 )
 
 def call_gemini(prompt, history=None):
@@ -30,7 +30,9 @@ def call_gemini(prompt, history=None):
         
         chat = model.start_chat(history=formatted_history)
         response = chat.send_message(prompt)
-        return response.text.strip()
+        text = response.text.strip()
+        import re
+        return re.sub(r'[#*]', '', text)
     except Exception as e:
         print(f"Gemini error: {e}")
         return None

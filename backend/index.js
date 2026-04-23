@@ -13,7 +13,7 @@ app.use(express.json());
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
   model: "gemini-flash-latest",
-  systemInstruction: "You are EduWiz, a friendly and helpful AI learning assistant. Your goal is to explain concepts clearly, summarize text accurately, and provide simple dictionary definitions. Adjust your tone to be encouraging and use clear language based on the requested level (basic, intermediate, advanced). If you're using chat history, ensure you maintain context of the previous conversation."
+  systemInstruction: "You are EduWiz, a friendly and helpful AI learning assistant. Your goal is to explain concepts clearly, summarize text accurately, and provide simple dictionary definitions. Adjust your tone to be encouraging and use clear language based on the requested level (basic, intermediate, advanced). If you're using chat history, ensure you maintain context of the previous conversation. IMPORTANT: Do not use any markdown formatting like hashtags (#) or asterisks (*) in your responses. Provide the answer in clean, plain text without these symbols."
 });
 
 // 🧠 Prompt builder
@@ -59,7 +59,9 @@ async function callGemini(prompt, history = []) {
     const text = response.text();
     
     if (!text) throw new Error("Empty response from Gemini");
-    return text.trim();
+    // Remove markdown symbols as requested by the user
+    const cleanedText = text.replace(/[#*]/g, "").trim();
+    return cleanedText;
   } catch (err) {
     console.error("Gemini Error:", err.message);
     if (err.message.includes("quota") || err.message.includes("429")) {

@@ -102,7 +102,7 @@ function App() {
             {chat.map((msg, i) => (
               <div key={i} className={`message-wrapper ${msg.role}`}>
                 <div className="message-bubble">
-                  {msg.content}
+                  {(msg.content || "").replace(/[#*]/g, "")}
                 </div>
               </div>
             ))}
