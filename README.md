@@ -156,8 +156,6 @@ GEMINI_API_KEY=your_google_gemini_api_key_here
 PORT=5000
 ```
 
-> ⚠️ **Never commit your `.env` file.** It is already listed in `.gitignore`.
-
 ### 4. Run the Application
 
 ```bash
@@ -277,7 +275,7 @@ This project is developed as an academic mini-project and is open for educationa
 ---
 
 <div align="center">
-  Made with ❤️ by <strong>Batch 40 | III CSE C</strong>
+  Made as a Mini Project by <strong>Batch 40 | III CSE C</strong>
   <br/>
   Powered by <strong>Google Gemini AI</strong>
 </div>
