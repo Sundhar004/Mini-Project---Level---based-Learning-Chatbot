@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
-const API_URL = "/api";
+const API_URL = process.env.REACT_APP_API_URL || "/api";
 
 function App() {
   const [question, setQuestion] = useState("");
